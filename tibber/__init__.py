@@ -5,9 +5,10 @@ import logging
 
 import aiohttp
 import async_timeout
-import pytz
 from dateutil.parser import parse
 from graphql_subscription_manager import SubscriptionManager
+import pytz
+from random import randrange
 
 from .const import RESOLUTION_HOURLY, __version__
 
@@ -48,6 +49,7 @@ class Tibber:
         self._homes = {}
         self.sub_manager = None
         self.user_agent = "pyTibber"
+        self._spread_load_constant = randrange(5000)
 
     async def close_connection(self):
         """Close the Tibber connection."""
@@ -192,7 +194,7 @@ class Tibber:
         if home_id not in self._all_home_ids:
             _LOGGER.error("Could not find any Tibber home with id: %s", home_id)
             return None
-        if home_id not in self._homes.keys():
+        if home_id not in self._homes:
             self._homes[home_id] = TibberHome(home_id, self)
         return self._homes[home_id]
 
@@ -226,6 +228,18 @@ class Tibber:
             pushed_to_number_of_devices,
         )
         return successful
+
+    async def update_info_and_price_info_active_homes(self):
+        """Update info and price info for active homes."""
+        now = dt.datetime.now()
+
+        tasks = []
+        for home in self.get_homes(only_active=True):
+            if (not home.last_data_timestamp or (home.last_data_timestamp - now).total_seconds()
+                    < 5 * 3600 + self._spread_load_constant
+            ):
+                tasks.append(home.update_info_and_price_info())
+        await asyncio.gather(*tasks)
 
 
 class TibberHome:
