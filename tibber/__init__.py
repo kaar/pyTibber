@@ -264,15 +264,13 @@ class TibberHome:
     async def fetch_consumption_data(self):
         """Update consumption info async."""
         now = dt.datetime.utcnow().replace(tzinfo=dt.timezone.utc)
+        td_hours = 1 if self.has_real_time_consumption else 24
         if self.last_cons_data_timestamp is not None and (
             now - self.last_cons_data_timestamp
-        ) < dt.timedelta(hours=24):
-            if not self.has_real_time_consumption:
-                return
-            else:
-                n_hours = int((now - self.last_cons_data_timestamp).total_seconds() / 3600) + 2
-        else:
-            n_hours = 30 * 24
+        ) < dt.timedelta(hours=td_hours):
+            return
+
+        n_hours = 30 * 24
 
         consumption = await self.get_historic_data(
             n_hours, resolution=RESOLUTION_HOURLY
